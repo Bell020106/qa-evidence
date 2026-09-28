@@ -1,0 +1,86 @@
+name: Intentional failure demo
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-demo:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Prepare browser test dependencies
+        id: prepare
+        shell: pwsh
+        run: |
+          python -m pip install -e '.[gui,selenium,server]'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m playwright install chromium
+          exit $LASTEXITCODE
+      - name: Run controlled failing Selenium assertion
+        id: tests
+        shell: pwsh
+        run: |
+          python -m signup031.ci_delivery test --output artifacts/ci-results --target review_checks/ci_synthetic_test.py::test_ci_intentional_failure
+          exit $LASTEXITCODE
+      - name: Preserve original JUnit, log and captured evidence
+        id: archive
+        if: ${{ !cancelled() && steps.tests.outcome != 'skipped' && steps.tests.outputs.capture_id != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: qa-intentional-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/ci-results/test-status.json
+            artifacts/ci-results/runs/${{ steps.tests.outputs.capture_id }}
+            artifacts/ci-results/evidence/${{ steps.tests.outputs.capture_id }}
+          if-no-files-found: error
+          retention-days: 14
+      - name: Send captured failure to QA receiver
+        id: transfer
+        if: ${{ !cancelled() && steps.tests.outcome != 'skipped' }}
+        shell: pwsh
+        env:
+          QA_SERVER_URL: ${{ vars.QA_SERVER_URL }}
+          QA_PROJECT_ID: ${{ vars.QA_PROJECT_ID }}
+          QA_RESULT_TOKEN: ${{ secrets.QA_RESULT_TOKEN }}
+        run: |
+          python -m signup031.ci_delivery send --output artifacts/ci-results
+          exit $LASTEXITCODE
+      - name: Record independent outcomes
+        if: ${{ always() }}
+        shell: pwsh
+        env:
+          PREPARE_OUTCOME: ${{ steps.prepare.outcome }}
+          TEST_OUTCOME: ${{ steps.tests.outcome }}
+          ARTIFACT_OUTCOME: ${{ steps.archive.outcome }}
+          TRANSFER_OUTCOME: ${{ steps.transfer.outcome }}
+        run: |
+          $lines = @(
+            "Preparation step: $env:PREPARE_OUTCOME"
+            "Original test step: $env:TEST_OUTCOME"
+            "Artifact upload step: $env:ARTIFACT_OUTCOME"
+            "Receiver transfer step: $env:TRANSFER_OUTCOME"
+          )
+          if (Test-Path 'artifacts/ci-results/test-status.json') {
+            $original = Get-Content 'artifacts/ci-results/test-status.json' -Raw | ConvertFrom-Json
+            $lines += "Original pytest exit: $($original.pytest_exit_code); status: $($original.test_status)"
+          } else {
+            $lines += 'Original pytest result: not produced (preparation or runner failure).'
+          }
+          if (Test-Path 'artifacts/ci-results/transfer-status.json') {
+            $delivery = Get-Content 'artifacts/ci-results/transfer-status.json' -Raw | ConvertFrom-Json
+            $lines += "Receiver transfer status: $($delivery.transfer_status)"
+          }
+          $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

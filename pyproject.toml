@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "signup031-evidence-runner"
+version = "0.1.0"
+description = "Reproducible SIGNUP-031 password-boundary evidence runner"
+requires-python = ">=3.11"
+dependencies = [
+  "playwright>=1.50,<2",
+  "pytest>=8,<10",
+]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.8,<7"]
+selenium = ["selenium>=4.49,<5"]
+server = ["fastapi>=0.141.1,<0.142", "uvicorn>=0.53,<0.54"]
+
+[tool.setuptools]
+packages = ["signup031"]
+
+[tool.setuptools.package-data]
+signup031 = ["manual_capture.js", "timeline_capture.js"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,54 @@
+.venv/
+venv/
+env/
+.pytest_cache/
+__pycache__/
+*.egg-info/
+
+# Local builds, test output, and transient files
+artifacts/
+build/
+dist/
+tmp/
+temp/
+*.log
+*.tmp
+*.bak
+.coverage
+coverage.xml
+htmlcov/
+report.html
+*-report.html
+junit*.xml
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets*.json
+created_accounts.csv
+
+# Browser/auth state and raw failure capture
+.qa/
+.qa-capture-*
+**/archive/
+*.har
+*.trace.zip
+auth-profile*/
+browser-profile*/
+user-data-dir*/
+cookies*.json
+storage-state*.json
+
+# Tool caches
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+playwright-report/
+test-results/
